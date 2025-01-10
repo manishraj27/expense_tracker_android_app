@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,7 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.patrykandpatrick.vico.compose.axis.horizontal.bottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.startAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
@@ -26,8 +28,8 @@ import java.util.*
 
 enum class ExpenseCategory(val emoji: String, val color: Color) {
     ENTERTAINMENT("🎬", Color(0xFF5B8FF9)),
-    SHOPPING("🛍️", Color(0xFFF7A600)),
-    FOOD("🍽️", Color(0xFF5AD8A6)),
+    SHOPPING("🛍", Color(0xFFF7A600)),
+    FOOD("🍽", Color(0xFF5AD8A6)),
     TRANSPORT("🚗", Color(0xFFFF6B3B)),
     BILLS("📃", Color(0xFF945FB9)),
     OTHER("📦", Color(0xFF5FB9B9))
@@ -44,7 +46,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     topBar = {
                         TopAppBar(
-                            title = { Text("Expense Tracker") },
+                            title = { Text("💰 Expense Tracker") },
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                                 titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -52,11 +54,16 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     floatingActionButton = {
-                        FloatingActionButton(
-                            onClick = { showAddExpense = true },
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        Box(
+                            modifier = Modifier.fillMaxSize().padding(start = 30.dp),
+                            contentAlignment = Alignment.BottomCenter
                         ) {
-                            Icon(Icons.Default.Add, "Add Expense")
+                            FloatingActionButton(
+                                onClick = { showAddExpense = true },
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Icon(Icons.Default.Add, "Add Expense")
+                            }
                         }
                     }
                 ) { padding ->
@@ -69,13 +76,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
+            @Composable
 fun ExpenseTrackerApp(showAddExpense: Boolean, onDismissDialog: () -> Unit) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper(context) }
     var expenses by remember { mutableStateOf(listOf<Expense>()) }
 
-    // Load expenses when the composable is first created
     LaunchedEffect(Unit) {
         expenses = dbHelper.getAllExpenses()
     }
@@ -85,20 +91,17 @@ fun ExpenseTrackerApp(showAddExpense: Boolean, onDismissDialog: () -> Unit) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Summary Cards
         item {
             SummaryCards(expenses)
         }
 
-        // Expense Chart
         item {
             ExpenseChart(expenses)
         }
 
-        // Recent Expenses
         item {
             Text(
-                "Recent Expenses",
+                "Recent Expenses 📝",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(vertical = 16.dp)
             )
@@ -134,6 +137,7 @@ fun SummaryCards(expenses: List<Expense>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -176,22 +180,6 @@ fun SummaryCard(title: String, amount: Double, modifier: Modifier = Modifier, co
     }
 }
 
-@Composable
-fun ExpenseChart(expenses: List<Expense>) {
-    val monthlyExpenses = expenses
-        .groupBy { it.date.substring(0, 7) }
-        .map { it.value.sumOf { expense -> expense.amount } }
-        .takeLast(6)
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,10 +188,11 @@ fun AddExpenseDialog(onDismiss: () -> Unit, onExpenseAdded: (Expense) -> Unit) {
     var selectedCategory by remember { mutableStateOf(ExpenseCategory.OTHER) }
     var description by remember { mutableStateOf("") }
     var showError by remember { mutableStateOf(false) }
+    var showCategoryDropdown by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Expense") },
+        title = { Text("Add Expense 💸") },
         text = {
             Column(
                 modifier = Modifier
@@ -220,21 +209,37 @@ fun AddExpenseDialog(onDismiss: () -> Unit, onExpenseAdded: (Expense) -> Unit) {
                 )
 
                 ExposedDropdownMenuBox(
-                    expanded = false,
-                    onExpandedChange = {},
+                    expanded = showCategoryDropdown,
+                    onExpandedChange = { showCategoryDropdown = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                 ) {
                     OutlinedTextField(
-                        value = selectedCategory.name,
+                        value = "${selectedCategory.emoji} ${selectedCategory.name}",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Category") },
-                        leadingIcon = {
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
                     )
+                    ExposedDropdownMenu(
+                        expanded = showCategoryDropdown,
+                        onDismissRequest = { showCategoryDropdown = false }
+                    ) {
+                        ExpenseCategory.values().forEach { category ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text("${category.emoji} ${category.name}")
+                                },
+                                onClick = {
+                                    selectedCategory = category
+                                    showCategoryDropdown = false
+                                }
+                            )
+                        }
+                    }
                 }
 
                 OutlinedTextField(
@@ -248,7 +253,7 @@ fun AddExpenseDialog(onDismiss: () -> Unit, onExpenseAdded: (Expense) -> Unit) {
 
                 if (showError) {
                     Text(
-                        "Please fill all fields correctly",
+                        "Please fill all fields correctly ⚠",
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
@@ -269,15 +274,47 @@ fun AddExpenseDialog(onDismiss: () -> Unit, onExpenseAdded: (Expense) -> Unit) {
                     }
                 }
             ) {
-                Text("Add")
+                Text("Add ✅")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel ❌")
             }
         }
     )
+}
+
+@Composable
+fun ExpenseChart(expenses: List<Expense>) {
+    val monthlyExpenses = expenses
+        .groupBy { it.date.substring(0, 7) }
+        .map { it.value.sumOf { expense -> expense.amount } }
+        .takeLast(6)
+        .toList()
+
+    // Convert to list of x,y pairs for the chart
+    val chartEntryData = monthlyExpenses.mapIndexed { index, value ->
+        index.toFloat() to value.toFloat()
+    }.toTypedArray()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Chart(
+            chart = lineChart(),
+            model = entryModelOf(*chartEntryData), // Using spread operator to pass array as vararg
+            startAxis = startAxis(),
+            bottomAxis = bottomAxis(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxSize()
+        )
+    }
 }
 
 @Composable
@@ -290,7 +327,6 @@ fun ExpenseItem(expense: Expense) {
             .padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-
         Row(
             modifier = Modifier
                 .padding(16.dp)
@@ -302,6 +338,11 @@ fun ExpenseItem(expense: Expense) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Text(
+                    text = category.emoji,
+                    fontSize = 24.sp,
+                    modifier = Modifier.size(24.dp)
+                )
                 Column {
                     Text(
                         text = expense.description,
