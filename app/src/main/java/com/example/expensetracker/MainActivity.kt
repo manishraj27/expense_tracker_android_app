@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-            @Composable
+@Composable
 fun ExpenseTrackerApp(showAddExpense: Boolean, onDismissDialog: () -> Unit) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper(context) }
