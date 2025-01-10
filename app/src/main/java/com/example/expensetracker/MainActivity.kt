@@ -1,28 +1,68 @@
 package com.example.expensetracker
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.patrykandpatrick.vico.compose.axis.horizontal.bottomAxis
+import com.patrykandpatrick.vico.compose.axis.vertical.startAxis
+import com.patrykandpatrick.vico.compose.chart.Chart
+import com.patrykandpatrick.vico.compose.chart.line.lineChart
+import com.patrykandpatrick.vico.core.entry.entryModelOf
 import java.text.SimpleDateFormat
 import java.util.*
 
+enum class ExpenseCategory(val emoji: String, val color: Color) {
+    ENTERTAINMENT("🎬", Color(0xFF5B8FF9)),
+    SHOPPING("🛍️", Color(0xFFF7A600)),
+    FOOD("🍽️", Color(0xFF5AD8A6)),
+    TRANSPORT("🚗", Color(0xFFFF6B3B)),
+    BILLS("📃", Color(0xFF945FB9)),
+    OTHER("📦", Color(0xFF5FB9B9))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    ExpenseTrackerApp()
+                var showAddExpense by remember { mutableStateOf(false) }
+
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            title = { Text("Expense Tracker") },
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    },
+                    floatingActionButton = {
+                        FloatingActionButton(
+                            onClick = { showAddExpense = true },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Icon(Icons.Default.Add, "Add Expense")
+                        }
+                    }
+                ) { padding ->
+                    Box(modifier = Modifier.padding(padding)) {
+                        ExpenseTrackerApp(showAddExpense) { showAddExpense = false }
+                    }
                 }
             }
         }
@@ -30,103 +70,93 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ExpenseTrackerApp() {
+fun ExpenseTrackerApp(showAddExpense: Boolean, onDismissDialog: () -> Unit) {
     val context = LocalContext.current
     val dbHelper = remember { DatabaseHelper(context) }
     var expenses by remember { mutableStateOf(listOf<Expense>()) }
-    var amount by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var showError by remember { mutableStateOf(false) }
 
-    Column(
+    // Load expenses when the composable is first created
+    LaunchedEffect(Unit) {
+        expenses = dbHelper.getAllExpenses()
+    }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Input fields
-        OutlinedTextField(
-            value = amount,
-            onValueChange = { amount = it },
-            label = { Text("Amount") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-        )
-
-        OutlinedTextField(
-            value = category,
-            onValueChange = { category = it },
-            label = { Text("Category") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-        )
-
-        OutlinedTextField(
-            value = description,
-            onValueChange = { description = it },
-            label = { Text("Description") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-        )
-
-        Button(
-            onClick = {
-                val amountDouble = amount.toDoubleOrNull()
-                if (amountDouble != null && category.isNotEmpty() && description.isNotEmpty()) {
-                    val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                    val expense = Expense(0, amountDouble, category, description, currentDate)
-                    dbHelper.addExpense(expense)
-                    expenses = dbHelper.getAllExpenses()
-                    amount = ""
-                    category = ""
-                    description = ""
-                    showError = false
-                } else {
-                    showError = true
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-        ) {
-            Text("Add Expense")
+        // Summary Cards
+        item {
+            SummaryCards(expenses)
         }
 
-        if (showError) {
+        // Expense Chart
+        item {
+            ExpenseChart(expenses)
+        }
+
+        // Recent Expenses
+        item {
             Text(
-                "Please fill all fields correctly",
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(vertical = 4.dp)
+                "Recent Expenses",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(vertical = 16.dp)
             )
         }
 
-        // Expense list
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            items(expenses) { expense ->
-                ExpenseItem(expense = expense)
-            }
+        items(expenses.take(5)) { expense ->
+            ExpenseItem(expense)
         }
+    }
 
-        // Load expenses when the composable is first created
-        LaunchedEffect(Unit) {
-            expenses = dbHelper.getAllExpenses()
-        }
+    if (showAddExpense) {
+        AddExpenseDialog(
+            onDismiss = onDismissDialog,
+            onExpenseAdded = { expense ->
+                dbHelper.addExpense(expense)
+                expenses = dbHelper.getAllExpenses()
+            }
+        )
     }
 }
 
 @Composable
-fun ExpenseItem(expense: Expense) {
-    Card(
+fun SummaryCards(expenses: List<Expense>) {
+    val totalExpense = expenses.sumOf { it.amount }
+    val thisMonthExpenses = expenses.filter {
+        val expenseDate = SimpleDateFormat("yyyy-MM", Locale.getDefault()).parse(it.date.substring(0, 7))
+        val currentDate = Date()
+        SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(expenseDate) ==
+                SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(currentDate)
+    }
+    val thisMonthTotal = thisMonthExpenses.sumOf { it.amount }
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        SummaryCard(
+            title = "Total Expenses",
+            amount = totalExpense,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.primaryContainer
+        )
+        SummaryCard(
+            title = "This Month",
+            amount = thisMonthTotal,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.secondaryContainer
+        )
+    }
+}
+
+@Composable
+fun SummaryCard(title: String, amount: Double, modifier: Modifier = Modifier, color: Color) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = color)
     ) {
         Column(
             modifier = Modifier
@@ -134,20 +164,159 @@ fun ExpenseItem(expense: Expense) {
                 .fillMaxWidth()
         ) {
             Text(
-                text = "₹${expense.amount}",
-                style = MaterialTheme.typography.headlineSmall
+                text = title,
+                style = MaterialTheme.typography.titleMedium
             )
             Text(
-                text = expense.category,
-                style = MaterialTheme.typography.bodyLarge
+                text = "₹${String.format("%.2f", amount)}",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+@Composable
+fun ExpenseChart(expenses: List<Expense>) {
+    val monthlyExpenses = expenses
+        .groupBy { it.date.substring(0, 7) }
+        .map { it.value.sumOf { expense -> expense.amount } }
+        .takeLast(6)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddExpenseDialog(onDismiss: () -> Unit, onExpenseAdded: (Expense) -> Unit) {
+    var amount by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf(ExpenseCategory.OTHER) }
+    var description by remember { mutableStateOf("") }
+    var showError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Expense") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Amount") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = false,
+                    onExpandedChange = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    OutlinedTextField(
+                        value = selectedCategory.name,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Category") },
+                        leadingIcon = {
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                )
+
+                if (showError) {
+                    Text(
+                        "Please fill all fields correctly",
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val amountDouble = amount.toDoubleOrNull()
+                    if (amountDouble != null && description.isNotEmpty()) {
+                        val currentDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        val expense = Expense(0, amountDouble, selectedCategory.name, description, currentDate)
+                        onExpenseAdded(expense)
+                        onDismiss()
+                    } else {
+                        showError = true
+                    }
+                }
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ExpenseItem(expense: Expense) {
+    val category = ExpenseCategory.valueOf(expense.category)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = expense.description,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = expense.date,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
             Text(
-                text = expense.description,
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Text(
-                text = expense.date,
-                style = MaterialTheme.typography.bodySmall
+                text = "₹${String.format("%.2f", expense.amount)}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }

@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.expensetracker"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.expensetracker"
@@ -50,14 +50,24 @@ android {
 }
 
 dependencies {
+    // AndroidX Core and Lifecycle
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    // Compose Dependencies
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+
+    // Vico Charts for Compose
+    implementation("com.patrykandpatrick.vico:compose:1.13.1")
+    implementation("com.patrykandpatrick.vico:compose-m3:1.13.1") // Material 3 theme integration
+    implementation("com.patrykandpatrick.vico:core:1.13.1")
+
+    // Testing Dependencies
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
