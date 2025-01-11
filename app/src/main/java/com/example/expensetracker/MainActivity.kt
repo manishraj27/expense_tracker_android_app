@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.patrykandpatrick.vico.compose.axis.horizontal.bottomAxis
@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+
 @Composable
 fun ExpenseTrackerApp(showAddExpense: Boolean, onDismissDialog: () -> Unit) {
     val context = LocalContext.current
@@ -101,14 +102,20 @@ fun ExpenseTrackerApp(showAddExpense: Boolean, onDismissDialog: () -> Unit) {
 
         item {
             Text(
-                "Recent Expenses 📝",
+                "All Expenses 📝",
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         }
 
-        items(expenses.take(5)) { expense ->
-            ExpenseItem(expense)
+        items(expenses) { expense ->
+            DeletableExpenseItem(
+                expense = expense,
+                onDelete = {
+                    dbHelper.deleteExpense(expense.id)
+                    expenses = dbHelper.getAllExpenses()
+                }
+            )
         }
     }
 
@@ -118,6 +125,95 @@ fun ExpenseTrackerApp(showAddExpense: Boolean, onDismissDialog: () -> Unit) {
             onExpenseAdded = { expense ->
                 dbHelper.addExpense(expense)
                 expenses = dbHelper.getAllExpenses()
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeletableExpenseItem(
+    expense: Expense,
+    onDelete: () -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val category = ExpenseCategory.valueOf(expense.category)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        onClick = { showDeleteDialog = true }
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = category.emoji,
+                    fontSize = 24.sp,
+                    modifier = Modifier.size(24.dp)
+                )
+                Column {
+                    Text(
+                        text = expense.description,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = expense.date,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "₹${String.format("%.2f", expense.amount)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                IconButton(onClick = { showDeleteDialog = true }) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete expense",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Expense") },
+            text = { Text("Are you sure you want to delete this expense?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -228,7 +324,7 @@ fun AddExpenseDialog(onDismiss: () -> Unit, onExpenseAdded: (Expense) -> Unit) {
                         expanded = showCategoryDropdown,
                         onDismissRequest = { showCategoryDropdown = false }
                     ) {
-                        ExpenseCategory.values().forEach { category ->
+                        ExpenseCategory.entries.forEach { category ->
                             DropdownMenuItem(
                                 text = {
                                     Text("${category.emoji} ${category.name}")
@@ -317,48 +413,3 @@ fun ExpenseChart(expenses: List<Expense>) {
     }
 }
 
-@Composable
-fun ExpenseItem(expense: Expense) {
-    val category = ExpenseCategory.valueOf(expense.category)
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = category.emoji,
-                    fontSize = 24.sp,
-                    modifier = Modifier.size(24.dp)
-                )
-                Column {
-                    Text(
-                        text = expense.description,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = expense.date,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-            Text(
-                text = "₹${String.format("%.2f", expense.amount)}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
