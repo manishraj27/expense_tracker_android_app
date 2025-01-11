@@ -136,6 +136,7 @@ fun DeletableExpenseItem(
     expense: Expense,
     onDelete: () -> Unit
 ) {
+    var isTapped by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     val category = ExpenseCategory.valueOf(expense.category)
 
@@ -143,7 +144,7 @@ fun DeletableExpenseItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        onClick = { showDeleteDialog = true }
+        onClick = { isTapped = !isTapped }
     ) {
         Row(
             modifier = Modifier
@@ -172,22 +173,30 @@ fun DeletableExpenseItem(
                     )
                 }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            if (isTapped) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "₹${String.format("%.2f", expense.amount)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete expense",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            } else {
                 Text(
                     text = "₹${String.format("%.2f", expense.amount)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
-                IconButton(onClick = { showDeleteDialog = true }) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete expense",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
             }
         }
     }
@@ -195,19 +204,22 @@ fun DeletableExpenseItem(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Expense") },
-            text = { Text("Are you sure you want to delete this expense?") },
+            title = { Text(text = "Delete Expense") },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete this expense?\n" +
+                            "Description: ${expense.description}\n" +
+                            "Amount: ₹${String.format("%.2f", expense.amount)}"
+                )
+            },
             confirmButton = {
-                Button(
+                TextButton(
                     onClick = {
-                        onDelete()
                         showDeleteDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
+                        onDelete()
+                    }
                 ) {
-                    Text("Delete")
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
